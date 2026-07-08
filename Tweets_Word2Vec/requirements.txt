@@ -1,0 +1,6 @@
+streamlit
+keras
+tf-keras
+numpy
+scikit-learn
+gensim
