@@ -1,9 +1,9 @@
 import streamlit as st
-import tensorflow as tf
+import keras
 import pickle
 import numpy as np
 
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+from keras.preprocessing.sequence import pad_sequences
 
 # -----------------------------------------------------
 # Page Configuration
@@ -60,13 +60,13 @@ def load_files():
 
     label_encoder = pickle.load(open("models/label_encoder.pkl", "rb"))
 
-    tfidf_model = tf.keras.models.load_model("models/tfidf_model.keras")
+    tfidf_model = keras.models.load_model("models/tfidf_model.keras")
 
-    rnn_model = tf.keras.models.load_model("models/rnn_model.keras")
+    rnn_model = keras.models.load_model("models/rnn_model.keras")
 
-    lstm_model = tf.keras.models.load_model("models/lstm_model.keras")
+    lstm_model = keras.models.load_model("models/lstm_model.keras")
 
-    gru_model = tf.keras.models.load_model("models/gru_model.keras")
+    gru_model = keras.models.load_model("models/gru_model.keras")
 
     return (
         tfidf,
