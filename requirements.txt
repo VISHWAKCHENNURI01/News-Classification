@@ -1,7 +1,5 @@
 streamlit==1.45.1
-keras==3.5.0
+scikit-learn
 numpy
 pandas
-scikit-learn
-scipy
 joblib

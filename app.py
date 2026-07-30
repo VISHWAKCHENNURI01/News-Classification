@@ -1,13 +1,6 @@
 import streamlit as st
-import keras
 import pickle
 import numpy as np
-
-from keras.preprocessing.sequence import pad_sequences
-
-# -----------------------------------------------------
-# Page Configuration
-# -----------------------------------------------------
 
 st.set_page_config(
     page_title="BBC News Classification",
@@ -47,137 +40,53 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------
-# Load Saved Files
-# -----------------------------------------------------
-
 @st.cache_resource
 def load_files():
+    tfidf      = pickle.load(open("models/tfidf_vectorizer.pkl", "rb"))
+    encoder    = pickle.load(open("models/label_encoder.pkl", "rb"))
+    lr_model   = pickle.load(open("models/logistic_regression.pkl", "rb"))
+    svm_model  = pickle.load(open("models/svm.pkl", "rb"))
+    mlp_model  = pickle.load(open("models/mlp.pkl", "rb"))
+    nb_model   = pickle.load(open("models/naive_bayes.pkl", "rb"))
+    return tfidf, encoder, lr_model, svm_model, mlp_model, nb_model
 
-    tfidf = pickle.load(open("models/tfidf.pkl", "rb"))
+tfidf, encoder, lr_model, svm_model, mlp_model, nb_model = load_files()
 
-    tokenizer = pickle.load(open("models/tokenizer.pkl", "rb"))
-
-    label_encoder = pickle.load(open("models/label_encoder.pkl", "rb"))
-
-    tfidf_model = keras.models.load_model("models/tfidf_model.keras")
-
-    rnn_model = keras.models.load_model("models/rnn_model.keras")
-
-    lstm_model = keras.models.load_model("models/lstm_model.keras")
-
-    gru_model = keras.models.load_model("models/gru_model.keras")
-
-    return (
-        tfidf,
-        tokenizer,
-        label_encoder,
-        tfidf_model,
-        rnn_model,
-        lstm_model,
-        gru_model,
-    )
-
-
-(
-    tfidf,
-    tokenizer,
-    label_encoder,
-    tfidf_model,
-    rnn_model,
-    lstm_model,
-    gru_model,
-) = load_files()
-
-MAX_LENGTH = 300
-
-# -----------------------------------------------------
-# Title
-# -----------------------------------------------------
+MODEL_MAP = {
+    "Logistic Regression": lr_model,
+    "SVM": svm_model,
+    "MLP Neural Network": mlp_model,
+    "Naive Bayes": nb_model,
+}
 
 st.title("📰 BBC News Text Classification")
+st.write("Predict the category of a BBC news article using ML models.")
 
-st.write(
-    "Predict the category of a BBC news article using "
-    "**TF-IDF**, **RNN**, **LSTM**, or **GRU**."
-)
+model_name = st.selectbox("Choose Model", list(MODEL_MAP.keys()))
 
-# -----------------------------------------------------
-# Model Selection
-# -----------------------------------------------------
-
-model_name = st.selectbox(
-    "Choose Model",
-    [
-        "TF-IDF",
-        "RNN",
-        "LSTM",
-        "GRU"
-    ]
-)
-
-# -----------------------------------------------------
-# Text Input
-# -----------------------------------------------------
-
-user_text = st.text_area(
-    "Enter News Article",
-    height=220
-)
-
-# -----------------------------------------------------
-# Prediction
-# -----------------------------------------------------
+user_text = st.text_area("Enter News Article", height=220)
 
 if st.button("Predict Category"):
-
     if user_text.strip() == "":
         st.warning("Please enter some text.")
         st.stop()
 
-    # ---------------- TF-IDF ----------------
+    vector = tfidf.transform([user_text])
+    model  = MODEL_MAP[model_name]
 
-    if model_name == "TF-IDF":
+    if hasattr(model, "predict_proba"):
+        proba      = model.predict_proba(vector)[0]
+        pred_class = np.argmax(proba)
+        confidence = proba[pred_class] * 100
+        label      = encoder.inverse_transform([pred_class])[0]
 
-        vector = tfidf.transform([user_text]).toarray()
+        st.success(f"Predicted Category : **{label.upper()}**")
+        st.info(f"Confidence : **{confidence:.2f}%**")
 
-        prediction = tfidf_model.predict(vector)
-
-    # ---------------- Deep Learning ----------------
-
+        st.subheader("Prediction Probabilities")
+        for cls, prob in zip(encoder.classes_, proba):
+            st.write(f"**{cls}** : {prob*100:.2f}%")
     else:
-
-        seq = tokenizer.texts_to_sequences([user_text])
-
-        padded = pad_sequences(
-            seq,
-            maxlen=MAX_LENGTH,
-            padding="post"
-        )
-
-        if model_name == "RNN":
-            prediction = rnn_model.predict(padded)
-
-        elif model_name == "LSTM":
-            prediction = lstm_model.predict(padded)
-
-        else:
-            prediction = gru_model.predict(padded)
-
-    predicted_class = np.argmax(prediction)
-
-    label = label_encoder.inverse_transform([predicted_class])[0]
-
-    confidence = np.max(prediction) * 100
-
-    st.success(f"Predicted Category : **{label.upper()}**")
-
-    st.info(f"Confidence : **{confidence:.2f}%**")
-
-    st.subheader("Prediction Probabilities")
-
-    for cls, prob in zip(
-        label_encoder.classes_,
-        prediction[0]
-    ):
-        st.write(f"**{cls}** : {prob*100:.2f}%")
+        pred_class = model.predict(vector)[0]
+        label      = encoder.inverse_transform([pred_class])[0]
+        st.success(f"Predicted Category : **{label.upper()}**")
