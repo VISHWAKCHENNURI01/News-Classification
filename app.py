@@ -1,148 +1,183 @@
 import streamlit as st
 import tensorflow as tf
-import numpy as np
 import pickle
-import re
+import numpy as np
 
-# ---------------------------------------------------
-# Page Config
-# ---------------------------------------------------
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+# -----------------------------------------------------
+# Page Configuration
+# -----------------------------------------------------
 
 st.set_page_config(
-    page_title="Twitter Airline Sentiment Analysis",
-    page_icon="✈️",
+    page_title="BBC News Classification",
+    page_icon="📰",
     layout="centered"
 )
 
-# ---------------------------------------------------
-# Load Files
-# ---------------------------------------------------
+st.markdown("""
+    <style>
+        html, body, [class*="css"], .stApp, .main, .block-container,
+        section[data-testid="stSidebar"], header, footer,
+        div[data-testid="stToolbar"], div[data-testid="stDecoration"],
+        div[data-testid="stStatusWidget"] {
+            background-color: #000000 !important;
+            color: #ffffff !important;
+        }
+        .stTextArea textarea {
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+        }
+        .stSelectbox div[data-baseweb="select"],
+        div[data-baseweb="popover"], ul[data-baseweb="menu"] {
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+        }
+        .stButton > button {
+            background-color: #222222 !important;
+            color: #ffffff !important;
+            border: 1px solid #555555 !important;
+        }
+        .stButton > button:hover { background-color: #444444 !important; }
+        .stSuccess, .stInfo, .stWarning {
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+        }
+        p, h1, h2, h3, h4, label, span { color: #ffffff !important; }
+    </style>
+""", unsafe_allow_html=True)
+
+# -----------------------------------------------------
+# Load Saved Files
+# -----------------------------------------------------
 
 @st.cache_resource
-def load_model():
-    return tf.keras.models.load_model("sentiment_model.keras")
+def load_files():
+
+    tfidf = pickle.load(open("models/tfidf.pkl", "rb"))
+
+    tokenizer = pickle.load(open("models/tokenizer.pkl", "rb"))
+
+    label_encoder = pickle.load(open("models/label_encoder.pkl", "rb"))
+
+    tfidf_model = tf.keras.models.load_model("models/tfidf_model.keras")
+
+    rnn_model = tf.keras.models.load_model("models/rnn_model.keras")
+
+    lstm_model = tf.keras.models.load_model("models/lstm_model.keras")
+
+    gru_model = tf.keras.models.load_model("models/gru_model.keras")
+
+    return (
+        tfidf,
+        tokenizer,
+        label_encoder,
+        tfidf_model,
+        rnn_model,
+        lstm_model,
+        gru_model,
+    )
 
 
-@st.cache_resource
-def load_scaler():
-    with open("scaler.pkl", "rb") as f:
-        return pickle.load(f)
+(
+    tfidf,
+    tokenizer,
+    label_encoder,
+    tfidf_model,
+    rnn_model,
+    lstm_model,
+    gru_model,
+) = load_files()
 
+MAX_LENGTH = 300
 
-@st.cache_resource
-def load_encoder():
-    with open("label_encoder.pkl", "rb") as f:
-        return pickle.load(f)
+# -----------------------------------------------------
+# Title
+# -----------------------------------------------------
 
-
-@st.cache_resource
-def load_embeddings():
-    with open("embedding_lookup.pkl", "rb") as f:
-        return pickle.load(f)
-
-
-model = load_model()
-scaler = load_scaler()
-encoder = load_encoder()
-embedding_lookup = load_embeddings()
-
-# ---------------------------------------------------
-# Text Cleaning
-# ---------------------------------------------------
-
-def clean_text(text):
-
-    text = text.lower()
-
-    text = re.sub(r"http\S+", " ", text)
-
-    text = re.sub(r"@\w+", " @ ", text)
-
-    text = re.sub(r"[^a-z@ ]", " ", text)
-
-    text = re.sub(r"\s+", " ", text).strip()
-
-    return text.split()
-
-# ---------------------------------------------------
-# Sentence Embedding
-# ---------------------------------------------------
-
-def sentence_vector(sentence):
-
-    words = clean_text(sentence)
-
-    vectors = []
-
-    for word in words:
-
-        if word in embedding_lookup:
-            vectors.append(embedding_lookup[word])
-
-    if len(vectors) == 0:
-        return np.zeros(100)
-
-    return np.mean(vectors, axis=0)
-
-# ---------------------------------------------------
-# UI
-# ---------------------------------------------------
-
-st.title("✈️ Twitter Airline Sentiment Analysis")
+st.title("📰 BBC News Text Classification")
 
 st.write(
-    "Predict whether an airline-related tweet expresses "
-    "Negative, Neutral, or Positive sentiment."
+    "Predict the category of a BBC news article using "
+    "**TF-IDF**, **RNN**, **LSTM**, or **GRU**."
 )
 
-tweet = st.text_area(
-    "Enter Tweet",
-    height=150,
-    placeholder="Example: I loved the customer service today!"
+# -----------------------------------------------------
+# Model Selection
+# -----------------------------------------------------
+
+model_name = st.selectbox(
+    "Choose Model",
+    [
+        "TF-IDF",
+        "RNN",
+        "LSTM",
+        "GRU"
+    ]
 )
 
-# ---------------------------------------------------
+# -----------------------------------------------------
+# Text Input
+# -----------------------------------------------------
+
+user_text = st.text_area(
+    "Enter News Article",
+    height=220
+)
+
+# -----------------------------------------------------
 # Prediction
-# ---------------------------------------------------
+# -----------------------------------------------------
 
-if st.button("Predict Sentiment"):
+if st.button("Predict Category"):
 
-    if tweet.strip() == "":
+    if user_text.strip() == "":
+        st.warning("Please enter some text.")
+        st.stop()
 
-        st.warning("Please enter a tweet.")
+    # ---------------- TF-IDF ----------------
+
+    if model_name == "TF-IDF":
+
+        vector = tfidf.transform([user_text]).toarray()
+
+        prediction = tfidf_model.predict(vector)
+
+    # ---------------- Deep Learning ----------------
 
     else:
 
-        vector = sentence_vector(tweet)
+        seq = tokenizer.texts_to_sequences([user_text])
 
-        vector = scaler.transform(vector.reshape(1, -1))
-
-        prediction = model.predict(vector, verbose=0)
-
-        pred_index = np.argmax(prediction)
-
-        sentiment = encoder.inverse_transform([pred_index])[0]
-
-        confidence = prediction[0][pred_index]
-
-        if sentiment == "positive":
-            st.success(f"😊 Prediction: {sentiment.capitalize()}")
-
-        elif sentiment == "neutral":
-            st.info(f"😐 Prediction: {sentiment.capitalize()}")
-
-        else:
-            st.error(f"😠 Prediction: {sentiment.capitalize()}")
-
-        st.metric(
-            "Confidence",
-            f"{confidence*100:.2f}%"
+        padded = pad_sequences(
+            seq,
+            maxlen=MAX_LENGTH,
+            padding="post"
         )
 
-        st.subheader("Prediction Probabilities")
+        if model_name == "RNN":
+            prediction = rnn_model.predict(padded)
 
-        for label, prob in zip(encoder.classes_, prediction[0]):
+        elif model_name == "LSTM":
+            prediction = lstm_model.predict(padded)
 
-            st.progress(float(prob))
+        else:
+            prediction = gru_model.predict(padded)
 
-            st.write(f"{label.capitalize()} : {prob*100:.2f}%")
+    predicted_class = np.argmax(prediction)
+
+    label = label_encoder.inverse_transform([predicted_class])[0]
+
+    confidence = np.max(prediction) * 100
+
+    st.success(f"Predicted Category : **{label.upper()}**")
+
+    st.info(f"Confidence : **{confidence:.2f}%**")
+
+    st.subheader("Prediction Probabilities")
+
+    for cls, prob in zip(
+        label_encoder.classes_,
+        prediction[0]
+    ):
+        st.write(f"**{cls}** : {prob*100:.2f}%")
