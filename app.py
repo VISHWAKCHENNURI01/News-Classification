@@ -1,6 +1,13 @@
 import streamlit as st
-import pickle
+import pandas as pd
 import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.naive_bayes import MultinomialNB
 
 st.set_page_config(
     page_title="BBC News Classification",
@@ -41,16 +48,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 @st.cache_resource
-def load_files():
-    tfidf      = pickle.load(open("models/tfidf_vectorizer.pkl", "rb"))
-    encoder    = pickle.load(open("models/label_encoder.pkl", "rb"))
-    lr_model   = pickle.load(open("models/logistic_regression.pkl", "rb"))
-    svm_model  = pickle.load(open("models/svm.pkl", "rb"))
-    mlp_model  = pickle.load(open("models/mlp.pkl", "rb"))
-    nb_model   = pickle.load(open("models/naive_bayes.pkl", "rb"))
-    return tfidf, encoder, lr_model, svm_model, mlp_model, nb_model
+def train_models():
+    df = pd.read_csv("bbc-text.csv")
+    encoder = LabelEncoder()
+    y = encoder.fit_transform(df["category"])
+    X = df["text"]
 
-tfidf, encoder, lr_model, svm_model, mlp_model, nb_model = load_files()
+    X_train, _, y_train, _ = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    tfidf = TfidfVectorizer(max_features=5000, stop_words="english")
+    X_train_tfidf = tfidf.fit_transform(X_train)
+
+    lr = LogisticRegression(max_iter=1000)
+    lr.fit(X_train_tfidf, y_train)
+
+    svm = LinearSVC(max_iter=2000)
+    svm.fit(X_train_tfidf, y_train)
+
+    mlp = MLPClassifier(hidden_layer_sizes=(256, 128), max_iter=50, random_state=42)
+    mlp.fit(X_train_tfidf, y_train)
+
+    nb = MultinomialNB()
+    nb.fit(X_train_tfidf, y_train)
+
+    return tfidf, encoder, lr, svm, mlp, nb
+
+with st.spinner("Loading models..."):
+    tfidf, encoder, lr_model, svm_model, mlp_model, nb_model = train_models()
 
 MODEL_MAP = {
     "Logistic Regression": lr_model,
@@ -63,8 +89,7 @@ st.title("📰 BBC News Text Classification")
 st.write("Predict the category of a BBC news article using ML models.")
 
 model_name = st.selectbox("Choose Model", list(MODEL_MAP.keys()))
-
-user_text = st.text_area("Enter News Article", height=220)
+user_text  = st.text_area("Enter News Article", height=220)
 
 if st.button("Predict Category"):
     if user_text.strip() == "":
@@ -79,10 +104,8 @@ if st.button("Predict Category"):
         pred_class = np.argmax(proba)
         confidence = proba[pred_class] * 100
         label      = encoder.inverse_transform([pred_class])[0]
-
         st.success(f"Predicted Category : **{label.upper()}**")
         st.info(f"Confidence : **{confidence:.2f}%**")
-
         st.subheader("Prediction Probabilities")
         for cls, prob in zip(encoder.classes_, proba):
             st.write(f"**{cls}** : {prob*100:.2f}%")
