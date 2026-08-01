@@ -80,8 +80,8 @@ with st.spinner("Loading models..."):
 
 MODEL_MAP = {
     "Logistic Regression": lr_model,
+    "TF-IDF Neural Network": mlp_model,
     "SVM": svm_model,
-    "MLP Neural Network": mlp_model,
     "Naive Bayes": nb_model,
 }
 
