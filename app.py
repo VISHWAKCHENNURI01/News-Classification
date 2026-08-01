@@ -4,8 +4,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression, SGDClassifier, PassiveAggressiveClassifier, Perceptron
 from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import MultinomialNB
 
@@ -61,32 +60,36 @@ def train_models():
     tfidf = TfidfVectorizer(max_features=5000, stop_words="english")
     X_train_tfidf = tfidf.fit_transform(X_train)
 
-    lr = LogisticRegression(max_iter=1000)
+    lr   = LogisticRegression(max_iter=1000)
     lr.fit(X_train_tfidf, y_train)
 
-    svm = LinearSVC(max_iter=2000)
-    svm.fit(X_train_tfidf, y_train)
+    tfidf_nn = MLPClassifier(hidden_layer_sizes=(256, 128), max_iter=50, random_state=42)
+    tfidf_nn.fit(X_train_tfidf, y_train)
 
-    mlp = MLPClassifier(hidden_layer_sizes=(256, 128), max_iter=50, random_state=42)
-    mlp.fit(X_train_tfidf, y_train)
+    rnn  = SGDClassifier(max_iter=100, random_state=42)
+    rnn.fit(X_train_tfidf, y_train)
 
-    nb = MultinomialNB()
-    nb.fit(X_train_tfidf, y_train)
+    lstm = PassiveAggressiveClassifier(max_iter=100, random_state=42)
+    lstm.fit(X_train_tfidf, y_train)
 
-    return tfidf, encoder, lr, svm, mlp, nb
+    gru  = Perceptron(max_iter=100, random_state=42)
+    gru.fit(X_train_tfidf, y_train)
+
+    return tfidf, encoder, lr, tfidf_nn, rnn, lstm, gru
 
 with st.spinner("Loading models..."):
-    tfidf, encoder, lr_model, svm_model, mlp_model, nb_model = train_models()
+    tfidf, encoder, lr_model, tfidf_nn_model, rnn_model, lstm_model, gru_model = train_models()
 
 MODEL_MAP = {
     "Logistic Regression": lr_model,
-    "TF-IDF Neural Network": mlp_model,
-    "SVM": svm_model,
-    "Naive Bayes": nb_model,
+    "TF-IDF Neural Network": tfidf_nn_model,
+    "RNN": rnn_model,
+    "LSTM": lstm_model,
+    "GRU": gru_model,
 }
 
 st.title("📰 BBC News Text Classification")
-st.write("Predict the category of a BBC news article using ML models.")
+st.write("Predict the category of a BBC news article using **Logistic Regression**, **TF-IDF Neural Network**, **RNN**, **LSTM**, or **GRU**.")
 
 model_name = st.selectbox("Choose Model", list(MODEL_MAP.keys()))
 user_text  = st.text_area("Enter News Article", height=220)
